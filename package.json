@@ -1,0 +1,27 @@
+{
+  "name": "paywave",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Confidential On-chain Payroll MVP using Zama FHEVM",
+  "workspaces": [
+    "contracts",
+    "frontend"
+  ],
+  "scripts": {
+    "contracts:compile": "npm run compile --workspace=contracts",
+    "contracts:test": "npm run test --workspace=contracts",
+    "contracts:deploy": "npm run deploy --workspace=contracts",
+    "frontend:dev": "npm run dev --workspace=frontend",
+    "frontend:build": "npm run build --workspace=frontend",
+    "dev": "npm run frontend:dev",
+    "test": "npm run contracts:test"
+  },
+  "keywords": [
+    "fhevm",
+    "payroll",
+    "confidential",
+    "blockchain"
+  ],
+  "license": "MIT",
+  "devDependencies": {}
+}

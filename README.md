@@ -1,244 +1,470 @@
 # PayWave - Confidential On-chain Payroll
 
 <p align="center">
-  <img src="./docs/paywave-logo.png" alt="PayWave Logo" width="200">
+  <strong>🔐 Privacy-preserving payroll powered by Fully Homomorphic Encryption (FHE)</strong>
 </p>
 
-**Privacy-preserving payroll powered by Fully Homomorphic Encryption (FHE) on blockchain.**
-
-PayWave enables companies to pay employees on-chain while keeping salary information completely confidential. Only authorized parties can decrypt salary details.
-
-## 🌟 Features
-
-- **🔐 Confidential Salaries** - All salary components (base, bonus, deductions, net pay) are encrypted on-chain
-- **💰 Public Deposits, Private Distributions** - USDC deposits are visible, but individual salary payments remain encrypted
-- **✅ Employee Verification** - Employees can decrypt and verify their own pay calculations
-- **🏛️ Break-Glass Compliance** - Government access requires dual approval (issuer + gov) + 24-hour timelock
-- **🎨 Vaporwave UI** - Retro-futuristic design with CRT scanlines, neon glows, and terminal aesthetics
-
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        PayWave System                           │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌───────────┐    ┌───────────┐    ┌───────────┐              │
-│  │   USDC    │───▶│  Wrapper  │───▶│   cUSDC   │              │
-│  │ (Public)  │    │           │    │(Encrypted)│              │
-│  └───────────┘    └───────────┘    └─────┬─────┘              │
-│                                          │                      │
-│                   ┌──────────────────────▼───────────────┐     │
-│                   │           Payroll Contract            │     │
-│                   │  • Encrypted payslip storage         │     │
-│                   │  • FHE net pay computation           │     │
-│                   │  • Confidential payments             │     │
-│                   │  • ACL-based decryption rights       │     │
-│                   └──────────────────────┬───────────────┘     │
-│                                          │                      │
-│  ┌───────────────┐    ┌─────────────────▼────────────────┐    │
-│  │   Treasury    │◀───│      ComplianceGate              │    │
-│  │  (cUSDC)      │    │  • Break-glass mechanism         │    │
-│  └───────────────┘    │  • Dual approval required        │    │
-│                        │  • 24h timelock                  │    │
-│                        └─────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-## 📁 Project Structure
-
-```
-paywave/
-├── contracts/               # Solidity smart contracts
-│   ├── src/
-│   │   ├── Payroll.sol           # Core payroll logic
-│   │   ├── PayrollTreasury.sol   # Treasury holding cUSDC
-│   │   ├── cUSDC.sol             # Confidential USDC token
-│   │   ├── USDCWrapper.sol       # USDC ↔ cUSDC wrapper
-│   │   ├── ComplianceGate.sol    # Break-glass mechanism
-│   │   ├── MockUSDC.sol          # Test token
-│   │   └── lib/
-│   │       ├── FHEVM.sol         # FHE operations interface
-│   │       └── Errors.sol        # Custom errors
-│   ├── test/
-│   │   └── PayWave.test.ts       # Comprehensive tests
-│   └── scripts/
-│       └── deploy.ts             # Deployment script
-│
-├── frontend/                # Next.js frontend
-│   ├── src/
-│   │   ├── app/
-│   │   │   ├── page.tsx          # Landing page
-│   │   │   ├── issuer/           # Issuer dashboard
-│   │   │   ├── employee/         # Employee portal
-│   │   │   └── government/       # Government portal
-│   │   ├── components/
-│   │   │   ├── ui/               # Reusable UI components
-│   │   │   ├── navbar.tsx
-│   │   │   └── providers.tsx
-│   │   └── lib/
-│   │       ├── contracts.ts      # Contract ABIs
-│   │       ├── addresses.ts      # Contract addresses
-│   │       └── utils.ts          # Utilities
-│   └── tailwind.config.ts        # Vaporwave theme
-│
-└── README.md
-```
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Node.js 18+
-- npm or yarn
-- MetaMask or compatible wallet
-
-### 1. Clone and Install
-
-```bash
-git clone <repo-url>
-cd paywave
-
-# Install dependencies
-npm install
-```
-
-### 2. Deploy Contracts (Local)
-
-```bash
-# Start local Hardhat node
-cd contracts
-npx hardhat node
-
-# In another terminal, deploy contracts
-npm run deploy
-
-# Note the deployed addresses from output
-```
-
-### 3. Configure Frontend
-
-```bash
-cd frontend
-cp .env.example .env.local
-
-# Edit .env.local with deployed contract addresses
-```
-
-### 4. Run Frontend
-
-```bash
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-## 🔧 Environment Variables
-
-### Contracts (`contracts/.env`)
-
-```env
-PRIVATE_KEY=your_private_key
-FHEVM_RPC_URL=https://devnet.zama.ai
-CHAIN_ID=9000
-```
-
-### Frontend (`frontend/.env.local`)
-
-```env
-NEXT_PUBLIC_CHAIN_ID=31337
-NEXT_PUBLIC_RPC_URL=http://127.0.0.1:8545
-
-NEXT_PUBLIC_USDC_ADDRESS=0x...
-NEXT_PUBLIC_CUSDC_ADDRESS=0x...
-NEXT_PUBLIC_WRAPPER_ADDRESS=0x...
-NEXT_PUBLIC_TREASURY_ADDRESS=0x...
-NEXT_PUBLIC_PAYROLL_ADDRESS=0x...
-NEXT_PUBLIC_GATE_ADDRESS=0x...
-
-NEXT_PUBLIC_RELAYER_URL=http://localhost:3001
-```
-
-## 📝 Contract API
-
-### Payroll Flow
-
-1. **Deposit USDC** → `USDCWrapper.deposit(amount, treasury)`
-2. **Set Payslip** → `Payroll.setPayslipInputs(employee, period, ciphertext, proof, policyHash)`
-3. **Compute Net** → `Payroll.computePayslip(employee, period)`
-4. **Pay Employee** → `Payroll.pay(employee, period)`
-
-### Break-Glass Flow
-
-1. **Request Case** → `ComplianceGate.requestCase(employee, period, reasonHash, evidenceURI)`
-2. **Issuer Approval** → `ComplianceGate.approveByIssuer(caseId)`
-3. **Gov Approval** → `ComplianceGate.approveByGov(caseId)`
-4. **Wait Timelock** → 24 hours
-5. **Execute** → `ComplianceGate.execute(caseId)`
-
-## 🧪 Testing
-
-```bash
-cd contracts
-npm test
-```
-
-Test coverage includes:
-- ✅ Happy path: deposit → inputs → compute → pay
-- ✅ Break-glass: request → approvals → timelock → execute
-- ✅ Access control: role-based restrictions
-- ✅ Edge cases: invalid periods, double payments, etc.
-
-## 🎨 Design System
-
-PayWave uses a **Vaporwave/Outrun** design language:
-
-| Token | Value |
-|-------|-------|
-| Background | `#090014` |
-| Foreground | `#E0E0E0` |
-| Magenta | `#FF00FF` |
-| Cyan | `#00FFFF` |
-| Orange | `#FF9900` |
-| Border | `#2D1B4E` |
-
-**Fonts:**
-- Headings: Orbitron
-- Body/UI: Share Tech Mono
-
-**Effects:**
-- CRT scanlines overlay
-- Neon glow shadows
-- Perspective grid backgrounds
-- Skewed button hover states
-
-## 🔒 Security Considerations
-
-- **No Public Decryption**: Salary amounts are NEVER publicly decryptable
-- **ACL Enforcement**: Only authorized addresses can decrypt specific payslips
-- **Timelock Protection**: 24-hour delay prevents rushed government access
-- **Event Privacy**: Events emit IDs and hashes, never salary amounts
-- **Role Gating**: Critical functions require multisig authorization
-
-## 🗺️ Roadmap
-
-- [ ] Integration with real FHEVM testnet
-- [ ] Production relayer for user decryption
-- [ ] Multi-period batch payments
-- [ ] Tax withholding calculations
-- [ ] Audit trail export for compliance
-- [ ] Mobile-responsive UI improvements
-
-## 📄 License
-
-MIT License
-
-## 🙏 Acknowledgments
-
-- [Zama](https://zama.ai/) - FHEVM technology
-- [shadcn/ui](https://ui.shadcn.com/) - UI component patterns
-- [Framer Motion](https://www.framer.com/motion/) - Animations
+<p align="center">
+  <a href="#核心概念">核心概念</a> •
+  <a href="#系統架構">系統架構</a> •
+  <a href="#合約設計">合約設計</a> •
+  <a href="#資料流程">資料流程</a> •
+  <a href="#安全模型">安全模型</a>
+</p>
 
 ---
 
-**Built with ❤️ and FHE for privacy-preserving payroll**
+## 專案簡介
+
+PayWave 是一個**機密鏈上薪資系統 MVP**，利用 [Zama FHEVM](https://www.zama.ai/fhevm) 的全同態加密（FHE）技術，實現：
+
+- 💰 **公開存款，私密分發** — USDC 存入金庫是可見的，但個人薪資分配完全加密
+- 🔐 **端到端加密薪資單** — 基本薪資、獎金、扣款全部以密文存儲
+- ✅ **員工自主驗證** — 員工可解密並在本地驗證計算正確性
+- 🏛️ **合規存取機制** — 政府存取需雙方批准 + 24 小時時間鎖
+
+---
+
+## 核心概念
+
+### 為什麼需要機密薪資？
+
+傳統區塊鏈的透明性使得薪資支付成為隱私噩夢：
+
+| 問題 | 傳統鏈上支付 | PayWave |
+|------|-------------|---------|
+| 薪資金額 | ❌ 完全公開 | ✅ 只有員工可見 |
+| 同事比較 | ❌ 任何人可查 | ✅ 無法比較 |
+| 商業機密 | ❌ 競爭對手可分析 | ✅ 支出模式隱藏 |
+| 合規需求 | ❌ 無法滿足 GDPR | ✅ 最小化揭露原則 |
+
+### FHE 如何解決？
+
+**全同態加密 (Fully Homomorphic Encryption)** 允許在密文上直接進行計算，無需解密：
+
+```
+加密(基本薪資) + 加密(獎金) - 加密(扣款) = 加密(淨薪資)
+     ↓                ↓              ↓              ↓
+   密文A    +      密文B     -     密文C     =    密文D
+```
+
+計算過程中，**沒有任何人**（包括區塊鏈節點）能看到實際金額。
+
+---
+
+## 系統架構
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           PayWave 系統架構                               │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│    ┌──────────────┐                                                     │
+│    │    USDC      │  公開 ERC20 代幣                                     │
+│    │  (Public)    │                                                     │
+│    └──────┬───────┘                                                     │
+│           │ deposit()                                                   │
+│           ▼                                                             │
+│    ┌──────────────┐                                                     │
+│    │ USDCWrapper  │  包裝器：USDC ↔ cUSDC 轉換                           │
+│    │              │  • deposit(): USDC → cUSDC (金額公開)                │
+│    │              │  • withdraw(): cUSDC → USDC (金額公開)               │
+│    └──────┬───────┘                                                     │
+│           │ mint()                                                      │
+│           ▼                                                             │
+│    ┌──────────────┐                                                     │
+│    │    cUSDC     │  機密 USDC 代幣                                      │
+│    │ (Encrypted)  │  • 餘額以 euint64 加密存儲                            │
+│    │              │  • transferEncryptedFrom(): 金額加密轉帳             │
+│    └──────┬───────┘                                                     │
+│           │                                                             │
+│    ┌──────┴───────────────────────────────────────┐                    │
+│    │                                               │                    │
+│    ▼                                               ▼                    │
+│  ┌──────────────┐                          ┌──────────────┐            │
+│  │   Treasury   │                          │   Payroll    │            │
+│  │  (金庫)      │◄─────────────────────────│  (薪資合約)   │            │
+│  │              │   pay() 觸發加密轉帳       │              │            │
+│  │ 持有公司的    │                          │ • 存儲加密薪單 │            │
+│  │ cUSDC 餘額   │                          │ • FHE 計算淨額 │            │
+│  └──────────────┘                          │ • ACL 權限控制 │            │
+│                                            └──────┬───────┘            │
+│                                                   │                    │
+│                                                   │ grantGovAccess()   │
+│                                                   ▼                    │
+│                                            ┌──────────────┐            │
+│                                            │ Compliance   │            │
+│                                            │    Gate      │            │
+│                                            │ (合規閘道)    │            │
+│                                            │              │            │
+│                                            │ • 雙重批准    │            │
+│                                            │ • 24h 時間鎖  │            │
+│                                            └──────────────┘            │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 合約設計
+
+### 1. cUSDC - 機密 USDC 代幣
+
+**檔案**: `contracts/src/cUSDC.sol`
+
+cUSDC 是 USDC 的加密包裝版本，所有餘額都以 `euint64`（加密的 64 位元無號整數）存儲。
+
+```solidity
+// 餘額存儲：地址 → 加密餘額
+mapping(address => euint64) private _encryptedBalances;
+```
+
+**關鍵設計決策**：
+
+| 操作 | 金額可見性 | 原因 |
+|------|-----------|------|
+| `mint()` | 公開 | 存款金額本來就是公開交易 |
+| `burn()` | 公開 | 提款金額本來就是公開交易 |
+| `transferEncryptedFrom()` | **加密** | 薪資轉帳必須保密 |
+
+**為什麼不用標準 ERC20？**
+
+標準 ERC20 的 `transfer(to, amount)` 中 `amount` 是公開的。我們需要的是：
+```solidity
+function transferEncryptedFrom(
+    address from,
+    address to,
+    euint64 amountHandle  // 加密的金額 handle
+) external onlyPayroll;
+```
+
+只有 Payroll 合約能調用此函數，且金額是加密的 handle，無人能直接讀取。
+
+---
+
+### 2. Payroll - 核心薪資合約
+
+**檔案**: `contracts/src/Payroll.sol`
+
+Payroll 是系統的核心，負責：
+1. 存儲加密薪資單
+2. 執行 FHE 計算
+3. 管理 ACL 解密權限
+
+#### 薪資單結構
+
+```solidity
+struct Payslip {
+    // === 加密欄位 (只有授權方能解密) ===
+    euint64 base;               // 基本薪資
+    euint64 bonus;              // 獎金
+    euint64 penalty;            // 扣款
+    euint64 unpaidLeaveDeduct;  // 無薪假扣除
+    euint64 net;                // 計算後的淨額
+    
+    // === 公開元資料 ===
+    PayslipStatus status;       // DRAFT → COMPUTED → PAID
+    bytes32 policyHash;         // 政策版本雜湊 (審計用)
+    uint256 createdAt;
+    uint256 computedAt;
+    uint256 paidAt;
+}
+```
+
+**為什麼分開存儲？**
+
+- **加密欄位**：實際金額，需要 FHE 保護
+- **公開元資料**：狀態、時間戳等，用於流程追蹤和審計
+
+#### FHE 淨額計算
+
+```solidity
+function computePayslip(address employee, uint32 period) external onlyIssuer {
+    Payslip storage slip = payslips[employee][period];
+    
+    // 同態加法：gross = base + bonus
+    euint64 gross = FHEVM.add(slip.base, slip.bonus);
+    
+    // 同態加法：deduct = penalty + unpaidLeaveDeduct  
+    euint64 deduct = FHEVM.add(slip.penalty, slip.unpaidLeaveDeduct);
+    
+    // 同態比較 + 條件選擇：net = max(gross - deduct, 0)
+    ebool isPositive = FHEVM.gte(gross, deduct);
+    euint64 difference = FHEVM.sub(gross, deduct);
+    slip.net = FHEVM.select(isPositive, difference, FHEVM.zero());
+    
+    // 授予員工解密權限
+    ACL.allow(slip.base, employee);
+    ACL.allow(slip.bonus, employee);
+    ACL.allow(slip.penalty, employee);
+    ACL.allow(slip.unpaidLeaveDeduct, employee);
+    ACL.allow(slip.net, employee);
+}
+```
+
+**計算公式**：
+```
+淨薪資 = max(基本薪資 + 獎金 - 扣款 - 無薪假扣除, 0)
+```
+
+整個計算在密文上進行，區塊鏈節點只看到 handle 的操作，無法得知實際數值。
+
+#### ACL 權限控制
+
+ACL（Access Control List）決定誰能解密哪個密文：
+
+```solidity
+// 員工只能解密自己的薪資單
+ACL.allow(slip.net, employee);
+
+// Payroll 合約本身需要權限來執行支付
+ACL.allow(slip.net, address(this));
+
+// 支付時，給予 cUSDC 合約臨時權限
+ACL.allowTransient(slip.net, address(token));
+```
+
+| 權限類型 | 用途 | 生命週期 |
+|---------|------|---------|
+| `allow()` | 永久授權 | 直到明確撤銷 |
+| `allowTransient()` | 交易內臨時授權 | 交易結束自動撤銷 |
+
+---
+
+### 3. USDCWrapper - 公私轉換器
+
+**檔案**: `contracts/src/USDCWrapper.sol`
+
+Wrapper 是公開世界（USDC）與機密世界（cUSDC）的橋樑。
+
+```
+        存款流程                          提款流程
+    
+    USDC (公開)                       cUSDC (加密)
+        │                                 │
+        │ transferFrom()                  │ burn()
+        ▼                                 ▼
+    ┌─────────┐                      ┌─────────┐
+    │ Wrapper │                      │ Wrapper │
+    └────┬────┘                      └────┬────┘
+         │ mint()                         │ transfer()
+         ▼                                ▼
+    cUSDC (加密)                      USDC (公開)
+```
+
+**設計原則**：
+- 存款/提款金額是公開的（無法隱藏，因為 USDC 是公開代幣）
+- 但存入後的**分配**是機密的
+
+---
+
+### 4. PayrollTreasury - 公司金庫
+
+**檔案**: `contracts/src/PayrollTreasury.sol`
+
+金庫是簡單的 cUSDC 持有合約，代表公司的薪資資金池。
+
+```solidity
+contract PayrollTreasury {
+    cUSDC public token;
+    address public payroll;  // 只有 Payroll 能從金庫轉出
+}
+```
+
+**為什麼需要獨立金庫？**
+1. **權限隔離**：薪資資金與公司其他資金分離
+2. **審計追蹤**：清晰的資金流向
+3. **多簽控制**：可升級為多簽金庫
+
+---
+
+### 5. ComplianceGate - 合規閘道
+
+**檔案**: `contracts/src/ComplianceGate.sol`
+
+這是 Break-Glass（打破玻璃）機制，用於合法合規場景（如法院命令、稅務審計）。
+
+#### 案件狀態機
+
+```
+  requestCase()        approveByIssuer()      approveByGov()         execute()
+       │                    │                      │                     │
+       ▼                    ▼                      ▼                     ▼
+   ┌────────┐         ┌──────────┐          ┌──────────┐          ┌──────────┐
+   │ PENDING │───────▶│ ISSUER   │─────────▶│  FULLY   │─────────▶│ EXECUTED │
+   │         │        │ APPROVED │          │ APPROVED │  24h後   │          │
+   └────────┘         └──────────┘          └──────────┘          └──────────┘
+                                                  │
+                                                  │ 24小時時間鎖
+                                                  ▼
+                                            員工收到通知
+                                            可提出異議
+```
+
+#### 雙重批准 + 時間鎖
+
+```solidity
+struct Case {
+    address employee;        // 目標員工
+    uint32 period;           // 目標期間
+    bytes32 reasonHash;      // 原因雜湊（隱私保護）
+    string evidenceURI;      // 證據文件 URI
+    bool issuerApproved;     // ✓ 發行方（公司）批准
+    bool govApproved;        // ✓ 政府批准
+    uint256 unlockTime;      // 24小時後的時間戳
+    bool executed;           // 是否已執行
+}
+
+uint256 public constant TIMELOCK_DURATION = 24 hours;
+```
+
+**為什麼需要這個設計？**
+
+| 保護措施 | 防止的攻擊 |
+|---------|-----------|
+| 雙重批准 | 單方面濫用（公司或政府任一方不能獨自存取） |
+| 24h 時間鎖 | 緊急剎車，讓員工有時間收到通知並提出異議 |
+| 事件日誌 | 所有存取請求都上鏈，無法抵賴 |
+
+---
+
+## 資料流程
+
+### 完整薪資支付流程
+
+```
+    發行方 (HR)                    區塊鏈                      員工
+        │                            │                          │
+   1. 存款 USDC                      │                          │
+        │──── deposit(10000) ───────▶│                          │
+        │     [公開: 10000 USDC]     │                          │
+        │                            │                          │
+   2. 設定加密薪資單                  │                          │
+        │── setPayslipInputs() ─────▶│                          │
+        │   [密文: base, bonus...]   │                          │
+        │                            │                          │
+   3. 計算淨薪資                      │                          │
+        │── computePayslip() ───────▶│                          │
+        │   [FHE: net = base+bonus-deduct]                      │
+        │                            │── ACL.allow(net, alice)─▶│
+        │                            │                          │
+   4. 執行支付                        │                          │
+        │──────── pay() ────────────▶│                          │
+        │   [加密轉帳: Treasury→Alice]│                          │
+        │                            │                          │
+        │                            │                     5. 解密查看
+        │                            │◀── decrypt(net) ────────│
+        │                            │──── 5050 cUSDC ─────────▶│
+        │                            │                          │
+        │                            │                     6. 本地驗證
+        │                            │          [5000+500-450 = 5050 ✓]
+```
+
+### 事件追蹤（審計友好）
+
+所有關鍵操作都發出事件，但**不包含金額**：
+
+```solidity
+// ✅ 記錄誰、何時、哪個期間 — 不記錄多少錢
+event PayslipPaid(
+    address indexed employee,
+    uint32 indexed period,
+    uint256 payslipId,
+    bytes32 paymentRef
+);
+
+// ❌ 我們絕不這樣做
+event PayslipPaid(
+    address employee,
+    uint256 amount  // 洩漏薪資！
+);
+```
+
+---
+
+## 安全模型
+
+### 威脅模型與對策
+
+| 威脅 | 攻擊者 | 對策 |
+|------|-------|------|
+| 薪資洩漏 | 外部觀察者 | FHE 加密，密文無法解讀 |
+| 內部洩漏 | 惡意 HR | ACL 限制，HR 不能解密員工薪資 |
+| 政府濫用 | 單一官員 | 雙重批准 + 時間鎖 |
+| 合約漏洞 | 駭客 | 角色分離、最小權限原則 |
+| 重放攻擊 | 攻擊者 | period 參數防止重複支付 |
+
+### 權限矩陣
+
+| 角色 | setPayslipInputs | computePayslip | pay | grantGovAccess | decrypt |
+|------|-----------------|----------------|-----|----------------|---------|
+| Owner | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Issuer | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Employee | ❌ | ❌ | ❌ | ❌ | ✅ (自己的) |
+| Government | ❌ | ❌ | ❌ | ❌ | ✅ (經批准的) |
+| ComplianceGate | ❌ | ❌ | ❌ | ✅ | ❌ |
+
+### 不可能發生的情況
+
+1. **HR 無法看到員工薪資** — ACL 不授權給 Issuer
+2. **員工無法看到同事薪資** — ACL 只授權給本人
+3. **政府無法立即存取** — 必須等待 24 小時
+4. **單方面無法授權政府** — 需要公司 + 政府雙方批准
+
+---
+
+## 技術規格
+
+### 合約清單
+
+| 合約 | 功能 | LOC |
+|------|------|-----|
+| `FHEVM.sol` | FHE 操作模擬庫 | ~150 |
+| `cUSDC.sol` | 機密 USDC 代幣 | ~190 |
+| `USDCWrapper.sol` | USDC ↔ cUSDC 橋接 | ~100 |
+| `PayrollTreasury.sol` | 公司金庫 | ~80 |
+| `Payroll.sol` | 核心薪資邏輯 | ~440 |
+| `ComplianceGate.sol` | 合規存取閘道 | ~300 |
+
+### 依賴項
+
+- Solidity `^0.8.24`
+- OpenZeppelin Contracts (SafeERC20)
+- Hardhat 開發框架
+
+### 鏈支援
+
+- 本地開發：Hardhat Network
+- 測試網：Sepolia, Zama FHEVM Devnet
+- 主網：需實際 FHEVM 支援
+
+---
+
+## 限制與未來工作
+
+### 當前 MVP 限制
+
+1. **Mock FHE** — 使用模擬 FHE 庫，非真實加密
+2. **單一發行方** — 尚未支援多公司
+3. **無批次支付** — 需逐一支付員工
+4. **簡化稅務** — 未實現完整稅務計算
+
+### 未來改進
+
+- [ ] 整合真實 Zama FHEVM
+- [ ] 多公司 / 多租戶架構
+- [ ] 批次薪資處理
+- [ ] 稅務自動代扣代繳
+- [ ] 行動端 UI
+- [ ] 正式安全審計
+
+---
+
+## 授權
+
+MIT License
+
+---
+
+<p align="center">
+  <strong>Built with 🔐 FHE for privacy-preserving payroll</strong>
+</p>

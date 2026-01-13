@@ -87,7 +87,10 @@ export const PAYROLL_ABI = [
     inputs: [
       { name: "employee", type: "address" },
       { name: "period", type: "uint32" },
-      { name: "packedCiphertext", type: "bytes" },
+      { name: "baseHandle", type: "bytes32" },        // externalEuint64
+      { name: "bonusHandle", type: "bytes32" },       // externalEuint64
+      { name: "penaltyHandle", type: "bytes32" },     // externalEuint64
+      { name: "unpaidLeaveHandle", type: "bytes32" }, // externalEuint64
       { name: "inputProof", type: "bytes" },
       { name: "policyHash", type: "bytes32" },
     ],

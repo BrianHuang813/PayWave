@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import "./lib/FHEVM.sol";
+import "@fhevm/solidity/lib/FHE.sol";
+import "@fhevm/solidity/config/ZamaConfig.sol";
+import "encrypted-types/EncryptedTypes.sol";
 import "./lib/Errors.sol";
 import "./cUSDC.sol";
 import "./PayrollTreasury.sol";
@@ -10,10 +12,9 @@ import "./PayrollTreasury.sol";
  * @title Payroll
  * @notice Core payroll contract for confidential salary management
  * @dev Stores encrypted payslips, computes encrypted net pay, executes confidential payments
+ *      using official Zama FHEVM SDK
  */
-contract Payroll {
-    using FHEVM for *;
-    
+contract Payroll is ZamaEthereumConfig {
     // ============ Enums ============
     
     enum PayslipStatus {
@@ -200,17 +201,24 @@ contract Payroll {
     // ============ Payslip Functions ============
     
     /**
-     * @notice Set encrypted payslip inputs for an employee
+     * @notice Set encrypted payslip inputs for an employee using encrypted inputs
+     * @dev Uses official FHEVM encrypted input format with ZK proof verification
      * @param employee Employee address
      * @param period Period in YYYYMM format
-     * @param packedCiphertext Encrypted salary components (base, bonus, penalty, unpaidLeaveDeduct)
-     * @param inputProof ZK proof for the ciphertext
+     * @param baseHandle Encrypted base salary handle
+     * @param bonusHandle Encrypted bonus handle
+     * @param penaltyHandle Encrypted penalty handle
+     * @param unpaidLeaveHandle Encrypted unpaid leave deduction handle
+     * @param inputProof ZK proof for all encrypted inputs
      * @param policyHash Hash of the policy version used
      */
     function setPayslipInputs(
         address employee,
         uint32 period,
-        bytes calldata packedCiphertext,
+        externalEuint64 baseHandle,
+        externalEuint64 bonusHandle,
+        externalEuint64 penaltyHandle,
+        externalEuint64 unpaidLeaveHandle,
         bytes calldata inputProof,
         bytes32 policyHash
     ) external onlyIssuer validPeriod(period) {
@@ -223,20 +231,18 @@ contract Payroll {
             revert E_ALREADY_SET();
         }
         
-        // Parse packed ciphertext into 4 encrypted values
-        // Format: [base_ct, bonus_ct, penalty_ct, unpaidLeave_ct] each as bytes
-        (
-            euint64 base,
-            euint64 bonus,
-            euint64 penalty,
-            euint64 unpaidLeave
-        ) = _parsePackedCiphertext(packedCiphertext, inputProof);
+        // Verify and convert encrypted inputs using official FHE.fromExternal
+        euint64 base = FHE.fromExternal(baseHandle, inputProof);
+        euint64 bonus = FHE.fromExternal(bonusHandle, inputProof);
+        euint64 penalty = FHE.fromExternal(penaltyHandle, inputProof);
+        euint64 unpaidLeave = FHE.fromExternal(unpaidLeaveHandle, inputProof);
         
-        // Store encrypted values
-        slip.base = base;
-        slip.bonus = bonus;
-        slip.penalty = penalty;
-        slip.unpaidLeaveDeduct = unpaidLeave;
+        // Allow this contract to use the encrypted values
+        slip.base = FHE.allowThis(base);
+        slip.bonus = FHE.allowThis(bonus);
+        slip.penalty = FHE.allowThis(penalty);
+        slip.unpaidLeaveDeduct = FHE.allowThis(unpaidLeave);
+        
         slip.status = PayslipStatus.DRAFT;
         slip.policyHash = policyHash;
         slip.createdAt = block.timestamp;
@@ -251,6 +257,7 @@ contract Payroll {
     /**
      * @notice Compute net pay from encrypted inputs
      * @dev gross = base + bonus; deduct = penalty + unpaidLeaveDeduct; net = max(gross - deduct, 0)
+     *      Uses FHE.select for confidential branching (no if/else on ebool)
      * @param employee Employee address
      * @param period Period in YYYYMM format
      */
@@ -263,36 +270,46 @@ contract Payroll {
         if (payslipIds[employee][period] == 0) revert E_PAYSLIP_NOT_FOUND();
         if (slip.status != PayslipStatus.DRAFT) revert E_BAD_STATUS();
         
-        // Compute gross = base + bonus
-        euint64 gross = FHEVM.add(slip.base, slip.bonus);
+        // Compute gross = base + bonus (homomorphic addition)
+        euint64 gross = FHE.add(slip.base, slip.bonus);
+        gross = FHE.allowThis(gross);
         
         // Compute total deductions = penalty + unpaidLeaveDeduct
-        euint64 deduct = FHEVM.add(slip.penalty, slip.unpaidLeaveDeduct);
+        euint64 deduct = FHE.add(slip.penalty, slip.unpaidLeaveDeduct);
+        deduct = FHE.allowThis(deduct);
         
         // Compute net = select(gross >= deduct, gross - deduct, 0)
-        ebool isPositive = FHEVM.gte(gross, deduct);
-        euint64 difference = FHEVM.sub(gross, deduct);
-        slip.net = FHEVM.select(isPositive, difference, FHEVM.zero());
+        // Using FHE.select for confidential conditional (NOT if/else on ebool)
+        ebool isPositive = FHE.ge(gross, deduct);
+        isPositive = FHE.allowThis(isPositive);
+        
+        euint64 difference = FHE.sub(gross, deduct);
+        difference = FHE.allowThis(difference);
+        
+        euint64 zero = FHE.asEuint64(0);
+        zero = FHE.allowThis(zero);
+        
+        // Select: if isPositive then difference else zero
+        euint64 net = FHE.select(isPositive, difference, zero);
+        slip.net = FHE.allowThis(net);
         
         // Update status
         slip.status = PayslipStatus.COMPUTED;
         slip.computedAt = block.timestamp;
         
-        // Grant employee permission to decrypt their payslip details
-        ACL.allow(slip.base, employee);
-        ACL.allow(slip.bonus, employee);
-        ACL.allow(slip.penalty, employee);
-        ACL.allow(slip.unpaidLeaveDeduct, employee);
-        ACL.allow(slip.net, employee);
-        
-        // Also allow this contract to continue using net for payment
-        ACL.allow(slip.net, address(this));
+        // Grant employee permission to decrypt their payslip details (user decrypt)
+        slip.base = FHE.allow(slip.base, employee);
+        slip.bonus = FHE.allow(slip.bonus, employee);
+        slip.penalty = FHE.allow(slip.penalty, employee);
+        slip.unpaidLeaveDeduct = FHE.allow(slip.unpaidLeaveDeduct, employee);
+        slip.net = FHE.allow(slip.net, employee);
         
         emit PayslipComputed(employee, period, payslipIds[employee][period]);
     }
     
     /**
      * @notice Execute confidential payment to employee
+     * @dev Transfers encrypted net amount from treasury to employee via cUSDC
      * @param employee Employee address
      * @param period Period in YYYYMM format
      */
@@ -307,7 +324,8 @@ contract Payroll {
         if (slip.status == PayslipStatus.PAID) revert E_ALREADY_PAID();
         
         // Grant transient access to cUSDC contract to use the net amount
-        ACL.allowTransient(slip.net, address(token));
+        // This allows cUSDC to verify it has permission within this transaction
+        FHE.allowTransient(slip.net, address(token));
         
         // Execute encrypted transfer from treasury to employee
         token.transferEncryptedFrom(
@@ -336,6 +354,7 @@ contract Payroll {
     /**
      * @notice Grant government access to decrypt a specific payslip
      * @dev Can ONLY be called by ComplianceGate after dual approval + timelock
+     *      Uses FHE.allow (NOT makePubliclyDecryptable) - only gov can decrypt
      * @param employee Employee address
      * @param period Period in YYYYMM format
      * @param caseId Compliance case ID for audit
@@ -349,13 +368,13 @@ contract Payroll {
         
         if (payslipIds[employee][period] == 0) revert E_PAYSLIP_NOT_FOUND();
         
-        // Grant government permission to decrypt payslip fields
+        // Grant government permission to decrypt payslip fields via user decrypt
         // NOT publicly decryptable - only govMultisig can decrypt
-        ACL.allow(slip.base, govMultisig);
-        ACL.allow(slip.bonus, govMultisig);
-        ACL.allow(slip.penalty, govMultisig);
-        ACL.allow(slip.unpaidLeaveDeduct, govMultisig);
-        ACL.allow(slip.net, govMultisig);
+        slip.base = FHE.allow(slip.base, govMultisig);
+        slip.bonus = FHE.allow(slip.bonus, govMultisig);
+        slip.penalty = FHE.allow(slip.penalty, govMultisig);
+        slip.unpaidLeaveDeduct = FHE.allow(slip.unpaidLeaveDeduct, govMultisig);
+        slip.net = FHE.allow(slip.net, govMultisig);
         
         emit GovAccessGranted(employee, period, caseId, govMultisig);
     }
@@ -388,8 +407,9 @@ contract Payroll {
     }
     
     /**
-     * @notice Get encrypted payslip handles (for frontend decryption)
+     * @notice Get encrypted payslip handles (for frontend user decryption)
      * @dev Anyone can get handles, but only permitted addresses can decrypt
+     *      Employee uses userDecrypt flow with EIP-712 signature
      */
     function getPayslipCipher(
         address employee,
@@ -409,31 +429,5 @@ contract Payroll {
             slip.unpaidLeaveDeduct,
             slip.net
         );
-    }
-    
-    // ============ Internal Functions ============
-    
-    /**
-     * @notice Parse packed ciphertext into individual encrypted values
-     * @dev In production, this would properly parse and verify the FHEVM ciphertext format
-     */
-    function _parsePackedCiphertext(
-        bytes calldata packedCiphertext,
-        bytes calldata inputProof
-    ) internal pure returns (
-        euint64 base,
-        euint64 bonus,
-        euint64 penalty,
-        euint64 unpaidLeave
-    ) {
-        // MVP: Create deterministic handles from the packed input
-        // In production: Use FHEVM library to properly parse ciphertexts
-        
-        bytes32 seed = keccak256(abi.encodePacked(packedCiphertext, inputProof));
-        
-        base = euint64.wrap(uint256(keccak256(abi.encodePacked(seed, "base"))));
-        bonus = euint64.wrap(uint256(keccak256(abi.encodePacked(seed, "bonus"))));
-        penalty = euint64.wrap(uint256(keccak256(abi.encodePacked(seed, "penalty"))));
-        unpaidLeave = euint64.wrap(uint256(keccak256(abi.encodePacked(seed, "unpaidLeave"))));
     }
 }

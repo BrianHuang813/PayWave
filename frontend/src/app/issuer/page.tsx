@@ -19,6 +19,7 @@ import {
 import { useAccount, useWriteContract, useReadContract } from "wagmi";
 import { USDC_ABI, WRAPPER_ABI, PAYROLL_ABI } from "@/lib/contracts";
 import { getContractAddress } from "@/lib/addresses";
+import { createEncryptedPayslipInputs } from "@/lib/fhevm";
 import {
   Wallet,
   ArrowDownToLine,
@@ -128,22 +129,31 @@ export default function IssuerPage() {
   };
 
   const handleSetPayslip = async () => {
-    if (!selectedEmployee || !selectedPeriod) return;
+    if (!selectedEmployee || !selectedPeriod || !address) return;
 
     try {
-      addLog(`Creating payslip for ${formatAddress(selectedEmployee)}...`);
+      addLog(`Creating encrypted payslip for ${formatAddress(selectedEmployee)}...`);
 
-      // Create packed ciphertext (mock for demo)
-      // In production, this would use fhevm JS SDK to encrypt
-      const salaryData = {
-        base: parseUSDC(baseSalary || "0"),
+      // 準備薪資資料 (轉換為 USDC 6 decimals)
+      const payslipData = {
+        baseSalary: parseUSDC(baseSalary || "0"),
         bonus: parseUSDC(bonus || "0"),
         penalty: parseUSDC(penalty || "0"),
         unpaidLeave: parseUSDC(unpaidLeave || "0"),
       };
 
-      const packedCiphertext = keccak256(toBytes(JSON.stringify(salaryData)));
-      const inputProof = keccak256(toBytes("mock_proof"));
+      addLog(`Encrypting salary data with FHEVM...`);
+
+      // 使用 FHEVM SDK 建立加密輸入
+      const { handles, inputProof } = await createEncryptedPayslipInputs(
+        payrollAddress,
+        address,
+        payslipData,
+        chainId || 31337
+      );
+
+      addLog(`Encrypted inputs created. Submitting to contract...`);
+
       const policyHash = keccak256(toBytes("policy_v1"));
 
       writeContract({
@@ -153,7 +163,10 @@ export default function IssuerPage() {
         args: [
           selectedEmployee as `0x${string}`,
           parseInt(selectedPeriod),
-          packedCiphertext,
+          handles[0], // baseHandle
+          handles[1], // bonusHandle
+          handles[2], // penaltyHandle
+          handles[3], // unpaidLeaveHandle
           inputProof,
           policyHash,
         ],
@@ -163,11 +176,12 @@ export default function IssuerPage() {
       
       toast({
         title: "Payslip Created",
-        description: "Encrypted payslip inputs have been set",
+        description: "Encrypted payslip inputs have been set using FHEVM",
         variant: "success",
       });
     } catch (error) {
       console.error(error);
+      addLog(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       toast({
         title: "Error",
         description: "Failed to create payslip",

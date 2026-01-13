@@ -539,6 +539,16 @@
   resolved "https://registry.yarnpkg.com/@fastify/busboy/-/busboy-2.1.1.tgz#b9da6a878a371829a0502c9b6c1c143ef6663f4d"
   integrity sha512-vBZP4NlzfOlerQTnba4aqZoMhE/a9HY7HRqoOPaETQcSQuWEIyZMHGfVu6w9wGtGK5fED5qRs2DteVCjOH60sA==
 
+"@fhevm/solidity@0.9.1":
+  version "0.9.1"
+  resolved "https://registry.yarnpkg.com/@fhevm/solidity/-/solidity-0.9.1.tgz#1ca0fe341a03f8a5a49a292f3666058a77f4735b"
+  integrity sha512-QxP+R+6v3aHA/rzgH9cDsiYOwRBB6zLAL3qNI4YfRewKA6ZB01cdkYvrB80FkJyddzxRNsT1jHIvJvSRS8XZ+Q==
+  dependencies:
+    encrypted-types "^0.0.4"
+  optionalDependencies:
+    solidity-comments-darwin-arm64 "0.1.1"
+    solidity-comments-linux-x64-gnu "0.1.1"
+
 "@floating-ui/core@^1.7.3":
   version "1.7.3"
   resolved "https://registry.yarnpkg.com/@floating-ui/core/-/core-1.7.3.tgz#462d722f001e23e46d86fd2bd0d21b7693ccb8b7"
@@ -4394,6 +4404,11 @@ encode-utf8@^1.0.3:
   resolved "https://registry.yarnpkg.com/encode-utf8/-/encode-utf8-1.0.3.tgz#f30fdd31da07fb596f281beb2f6b027851994cda"
   integrity sha512-ucAnuBEhUK4boH2HjVYG5Q2mQyPorvv0u/ocS+zhdw0S8AlHYY+GOFhP1Gio5z4icpP2ivFSvhtFjQi8+T9ppw==
 
+encrypted-types@0.0.4, encrypted-types@^0.0.4:
+  version "0.0.4"
+  resolved "https://registry.yarnpkg.com/encrypted-types/-/encrypted-types-0.0.4.tgz#6df80d7917d02f3946b21caf2dd77ba91ac22971"
+  integrity sha512-f55ccBBUwvqWqr3ymAVOLZ6bzjsSQZlDN0GcKFmzkvTpml4Vm3Y6BCaHhCuW/ctrabTJJ3DFnUsjtFOpokJUaQ==
+
 end-of-stream@^1.1.0, end-of-stream@^1.4.0, end-of-stream@^1.4.1:
   version "1.4.5"
   resolved "https://registry.yarnpkg.com/end-of-stream/-/end-of-stream-1.4.5.tgz#7344d711dea40e0b74abc2ed49778743ccedb08c"
@@ -7869,6 +7884,16 @@ solc@0.8.26:
     memorystream "^0.3.1"
     semver "^5.5.0"
     tmp "0.0.33"
+
+solidity-comments-darwin-arm64@0.1.1:
+  version "0.1.1"
+  resolved "https://registry.yarnpkg.com/solidity-comments-darwin-arm64/-/solidity-comments-darwin-arm64-0.1.1.tgz#9fc53a617229d942e091f6365d7715c6d7ddf19e"
+  integrity sha512-ze1+YboHm8tRJXCoFEsxtU1gpvQ3rCH55xMtBH6dtyh1/gz4qrKCOUBaAP+IHplbzCacZBn+Pz3UmMDOoGshRw==
+
+solidity-comments-linux-x64-gnu@0.1.1:
+  version "0.1.1"
+  resolved "https://registry.yarnpkg.com/solidity-comments-linux-x64-gnu/-/solidity-comments-linux-x64-gnu-0.1.1.tgz#be9d8c2e861db2ee3f9b8b8402ce600dec0fde72"
+  integrity sha512-oiU4yhh1Q9SeGXQ+/sogfTNoOkU8I8IvlIeotBQziTOonUHrxQk4E63kNiYGPDn5ZbB3BhKFmGHNRNrkufsxcQ==
 
 solidity-coverage@^0.8.0:
   version "0.8.17"

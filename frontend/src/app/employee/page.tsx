@@ -14,9 +14,10 @@ import {
   getStatusLabel,
   getStatusColor,
 } from "@/lib/utils";
-import { useAccount, useReadContract } from "wagmi";
+import { useAccount, useReadContract, useSignTypedData } from "wagmi";
 import { PAYROLL_ABI, CUSDC_ABI } from "@/lib/contracts";
 import { getContractAddress } from "@/lib/addresses";
+import { decryptPayslip, formatFhevmUSDC, type DecryptedPayslip } from "@/lib/fhevm";
 import {
   Wallet,
   Eye,
@@ -33,17 +34,12 @@ import {
 export default function EmployeePage() {
   const { address, isConnected, chainId } = useAccount();
   const { toast } = useToast();
+  const { signTypedDataAsync } = useSignTypedData();
 
   // UI States
   const [selectedPeriod, setSelectedPeriod] = React.useState("202601");
   const [isDecrypting, setIsDecrypting] = React.useState(false);
-  const [decryptedData, setDecryptedData] = React.useState<{
-    base: string;
-    bonus: string;
-    penalty: string;
-    unpaidLeave: string;
-    net: string;
-  } | null>(null);
+  const [decryptedData, setDecryptedData] = React.useState<DecryptedPayslip | null>(null);
 
   // Contract addresses
   const payrollAddress = getContractAddress("payroll", chainId);
@@ -58,6 +54,15 @@ export default function EmployeePage() {
     query: { enabled: !!address },
   });
 
+  // Read encrypted cipher handles for payslip
+  const { data: payslipCipher } = useReadContract({
+    address: payrollAddress,
+    abi: PAYROLL_ABI,
+    functionName: "getPayslipCipher",
+    args: address ? [address, parseInt(selectedPeriod)] : undefined,
+    query: { enabled: !!address },
+  });
+
   // Read encrypted balance handle
   const { data: balanceCipher } = useReadContract({
     address: cusdcAddress,
@@ -67,32 +72,44 @@ export default function EmployeePage() {
     query: { enabled: !!address },
   });
 
-  // Mock decryption function (in production, use fhevm JS SDK + relayer)
+  // FHEVM decryption using official SDK
   const handleDecrypt = async () => {
+    if (!address || !payslipCipher) {
+      toast({
+        title: "Error",
+        description: "No payslip data to decrypt",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsDecrypting(true);
     
     try {
-      // Simulate relayer decryption request
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // 從合約取得加密 handles (base, bonus, penalty, unpaidLeave, net)
+      const handles = payslipCipher as [bigint, bigint, bigint, bigint, bigint];
+      
+      // 使用 FHEVM SDK 解密
+      const decrypted = await decryptPayslip(
+        handles,
+        payrollAddress,
+        address,
+        signTypedDataAsync,
+        chainId || 31337
+      );
 
-      // Mock decrypted values (in production, these come from relayer)
-      setDecryptedData({
-        base: "5000.00",
-        bonus: "500.00",
-        penalty: "100.00",
-        unpaidLeave: "200.00",
-        net: "5200.00",
-      });
+      setDecryptedData(decrypted);
 
       toast({
         title: "Decryption Complete",
-        description: "Your payslip has been decrypted",
+        description: "Your payslip has been decrypted using FHEVM",
         variant: "success",
       });
     } catch (error) {
+      console.error(error);
       toast({
         title: "Decryption Failed",
-        description: "Could not decrypt payslip",
+        description: error instanceof Error ? error.message : "Could not decrypt payslip",
         variant: "destructive",
       });
     } finally {
@@ -104,11 +121,12 @@ export default function EmployeePage() {
   const verifyCalculation = () => {
     if (!decryptedData) return { valid: false, message: "No data to verify" };
 
-    const base = parseFloat(decryptedData.base);
-    const bonus = parseFloat(decryptedData.bonus);
-    const penalty = parseFloat(decryptedData.penalty);
-    const unpaidLeave = parseFloat(decryptedData.unpaidLeave);
-    const net = parseFloat(decryptedData.net);
+    // 將 bigint 轉換為 number 進行計算 (已經是 6 decimals)
+    const base = Number(decryptedData.base) / 1_000_000;
+    const bonus = Number(decryptedData.bonus) / 1_000_000;
+    const penalty = Number(decryptedData.penalty) / 1_000_000;
+    const unpaidLeave = Number(decryptedData.unpaidLeave) / 1_000_000;
+    const net = Number(decryptedData.net) / 1_000_000;
 
     const gross = base + bonus;
     const deductions = penalty + unpaidLeave;
@@ -279,19 +297,19 @@ export default function EmployeePage() {
                       <div className="flex justify-between items-center py-2 border-b border-vapor-border">
                         <span className="text-vapor-muted">Base Salary</span>
                         <span className="font-mono text-vapor-success">
-                          ${decryptedData.base}
+                          ${formatFhevmUSDC(decryptedData.base)}
                         </span>
                       </div>
                       <div className="flex justify-between items-center py-2 border-b border-vapor-border">
                         <span className="text-vapor-muted">Bonus</span>
                         <span className="font-mono text-vapor-success">
-                          +${decryptedData.bonus}
+                          +${formatFhevmUSDC(decryptedData.bonus)}
                         </span>
                       </div>
                       <div className="flex justify-between items-center py-2 border-b border-vapor-border">
                         <span className="text-vapor-muted">Penalty</span>
                         <span className="font-mono text-vapor-error">
-                          -${decryptedData.penalty}
+                          -${formatFhevmUSDC(decryptedData.penalty)}
                         </span>
                       </div>
                       <div className="flex justify-between items-center py-2 border-b border-vapor-border">
@@ -299,7 +317,7 @@ export default function EmployeePage() {
                           Unpaid Leave Deduction
                         </span>
                         <span className="font-mono text-vapor-error">
-                          -${decryptedData.unpaidLeave}
+                          -${formatFhevmUSDC(decryptedData.unpaidLeave)}
                         </span>
                       </div>
                     </div>
@@ -311,7 +329,7 @@ export default function EmployeePage() {
                           Net Pay
                         </span>
                         <span className="font-orbitron text-2xl text-vapor-cyan text-neon-cyan">
-                          ${decryptedData.net}
+                          ${formatFhevmUSDC(decryptedData.net)}
                         </span>
                       </div>
                     </div>

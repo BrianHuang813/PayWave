@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import "./lib/FHEVM.sol";
+import "@fhevm/solidity/lib/FHE.sol";
+import "@fhevm/solidity/config/ZamaConfig.sol";
+import "encrypted-types/EncryptedTypes.sol";
 import "./lib/Errors.sol";
 
 /**
  * @title cUSDC - Confidential USDC
  * @notice Encrypted ERC20-like token with confidential balances and transfer amounts
- * @dev Implements FHEVM encrypted operations for private balance tracking
+ * @dev Implements Zama FHEVM encrypted operations for private balance tracking
  */
-contract cUSDC {
-    using FHEVM for *;
-    
+contract cUSDC is ZamaEthereumConfig {
     // ============ State Variables ============
     
     string public constant name = "Confidential USDC";
@@ -98,17 +98,22 @@ contract cUSDC {
         if (to == address(0)) revert E_INVALID_ADDRESS();
         if (amount == 0) revert E_INVALID_AMOUNT();
         
-        // Convert public amount to encrypted and add to balance
-        euint64 encryptedAmount = FHEVM.asEuint64(uint64(amount));
+        // Convert public amount to encrypted using official FHE.asEuint64
+        euint64 encryptedAmount = FHE.asEuint64(uint64(amount));
+        // Allow this contract to use the encrypted amount
+        encryptedAmount = FHE.allowThis(encryptedAmount);
         
-        if (FHEVM.isInitialized(_encryptedBalances[to])) {
-            _encryptedBalances[to] = FHEVM.add(_encryptedBalances[to], encryptedAmount);
+        if (FHE.isInitialized(_encryptedBalances[to])) {
+            // Add to existing balance
+            euint64 newBalance = FHE.add(_encryptedBalances[to], encryptedAmount);
+            // Allow this contract and the user to use the new balance
+            _encryptedBalances[to] = FHE.allowThis(newBalance);
+            _encryptedBalances[to] = FHE.allow(_encryptedBalances[to], to);
         } else {
-            _encryptedBalances[to] = encryptedAmount;
+            // Set initial balance
+            _encryptedBalances[to] = FHE.allowThis(encryptedAmount);
+            _encryptedBalances[to] = FHE.allow(_encryptedBalances[to], to);
         }
-        
-        // Grant decrypt permission to owner
-        ACL.allow(_encryptedBalances[to], to);
         
         totalSupply += amount;
         emit Mint(to, amount);
@@ -124,9 +129,15 @@ contract cUSDC {
         if (from == address(0)) revert E_INVALID_ADDRESS();
         if (amount == 0) revert E_INVALID_AMOUNT();
         
+        // Convert public amount to encrypted
+        euint64 encryptedAmount = FHE.asEuint64(uint64(amount));
+        encryptedAmount = FHE.allowThis(encryptedAmount);
+        
         // Subtract from encrypted balance
-        euint64 encryptedAmount = FHEVM.asEuint64(uint64(amount));
-        _encryptedBalances[from] = FHEVM.sub(_encryptedBalances[from], encryptedAmount);
+        euint64 newBalance = FHE.sub(_encryptedBalances[from], encryptedAmount);
+        // Update ACL for new balance
+        _encryptedBalances[from] = FHE.allowThis(newBalance);
+        _encryptedBalances[from] = FHE.allow(_encryptedBalances[from], from);
         
         totalSupply -= amount;
         emit Burn(from, amount);
@@ -148,24 +159,24 @@ contract cUSDC {
     ) external onlyPayroll {
         if (from == address(0) || to == address(0)) revert E_INVALID_ADDRESS();
         
-        // Verify payroll has transient access to the amount
-        require(ACL.isAllowed(amountHandle, msg.sender), "No access to amount");
+        // Verify payroll (msg.sender) has transient access to the amount
+        require(FHE.isSenderAllowed(amountHandle), "No access to amount");
         
         // Subtract from sender's balance
-        _encryptedBalances[from] = FHEVM.sub(_encryptedBalances[from], amountHandle);
+        euint64 fromNewBalance = FHE.sub(_encryptedBalances[from], amountHandle);
+        _encryptedBalances[from] = FHE.allowThis(fromNewBalance);
+        _encryptedBalances[from] = FHE.allow(_encryptedBalances[from], from);
         
         // Add to recipient's balance
-        if (FHEVM.isInitialized(_encryptedBalances[to])) {
-            _encryptedBalances[to] = FHEVM.add(_encryptedBalances[to], amountHandle);
+        euint64 toNewBalance;
+        if (FHE.isInitialized(_encryptedBalances[to])) {
+            toNewBalance = FHE.add(_encryptedBalances[to], amountHandle);
         } else {
-            _encryptedBalances[to] = amountHandle;
+            toNewBalance = amountHandle;
         }
-        
-        // Grant decrypt permission to recipient for their new balance
-        ACL.allow(_encryptedBalances[to], to);
-        
-        // Clear transient permission
-        ACL.clearTransient(amountHandle, msg.sender);
+        // Update ACL for recipient's new balance
+        _encryptedBalances[to] = FHE.allowThis(toNewBalance);
+        _encryptedBalances[to] = FHE.allow(_encryptedBalances[to], to);
         
         // Emit event WITHOUT amount (confidential)
         emit EncryptedTransfer(from, to);
@@ -187,6 +198,6 @@ contract cUSDC {
      * @notice Check if an address has an initialized balance
      */
     function hasBalance(address account) external view returns (bool) {
-        return FHEVM.isInitialized(_encryptedBalances[account]);
+        return FHE.isInitialized(_encryptedBalances[account]);
     }
 }

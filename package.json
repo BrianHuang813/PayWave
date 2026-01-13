@@ -3,18 +3,25 @@
   "version": "1.0.0",
   "private": true,
   "description": "Confidential On-chain Payroll MVP using Zama FHEVM",
-  "workspaces": [
-    "contracts",
-    "frontend"
-  ],
+  "workspaces": {
+    "packages": [
+      "contracts",
+      "frontend"
+    ],
+    "nohoist": [
+      "contracts/@fhevm/**",
+      "contracts/encrypted-types",
+      "contracts/encrypted-types/**"
+    ]
+  },
   "scripts": {
-    "contracts:compile": "npm run compile --workspace=contracts",
-    "contracts:test": "npm run test --workspace=contracts",
-    "contracts:deploy": "npm run deploy --workspace=contracts",
-    "frontend:dev": "npm run dev --workspace=frontend",
-    "frontend:build": "npm run build --workspace=frontend",
-    "dev": "npm run frontend:dev",
-    "test": "npm run contracts:test"
+    "contracts:compile": "yarn workspace paywave-contracts compile",
+    "contracts:test": "yarn workspace paywave-contracts test",
+    "contracts:deploy": "yarn workspace paywave-contracts deploy",
+    "frontend:dev": "yarn workspace paywave-frontend dev",
+    "frontend:build": "yarn workspace paywave-frontend build",
+    "dev": "yarn frontend:dev",
+    "test": "yarn contracts:test"
   },
   "keywords": [
     "fhevm",

@@ -5,9 +5,12 @@
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",
+    "test:mock": "hardhat test test/MockPayWave.test.ts",
     "deploy": "hardhat run scripts/deploy.ts --network localhost",
+    "deploy:mock": "hardhat run scripts/deployMock.ts --network localhost",
     "deploy:testnet": "hardhat run scripts/deploy.ts --network fhevmTestnet",
     "deploy:sepolia": "hardhat run scripts/deploy.ts --network sepolia",
+    "node": "hardhat node",
     "clean": "hardhat clean",
     "postinstall": "mkdir -p node_modules/@fhevm && cp -r ../node_modules/@fhevm/solidity node_modules/@fhevm/ 2>/dev/null || true && cp -r ../node_modules/encrypted-types node_modules/ 2>/dev/null || true"
   },
